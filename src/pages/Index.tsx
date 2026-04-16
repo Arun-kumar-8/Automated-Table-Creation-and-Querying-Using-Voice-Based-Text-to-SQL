@@ -3,9 +3,11 @@ import { Database, Terminal, Zap, BookOpen } from "lucide-react";
 import { CommandInput } from "@/components/CommandInput";
 import { QueryResultDisplay } from "@/components/QueryResultDisplay";
 import { QueryHistoryPanel } from "@/components/QueryHistoryPanel";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { executeNLQuery, type QueryResult } from "@/lib/query-engine";
-import { getSuggestion } from "@/lib/nlp-processor";
+import { parseNaturalLanguage, generateSQLQuery, getSuggestion } from "@/lib/nlp-processor";
 
 const EXAMPLE_COMMANDS = [
   "Create table students with name and marks",
@@ -21,55 +23,74 @@ export default function Index() {
   const [results, setResults] = useState<QueryResult[]>([]);
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState("");
+  const [pendingSQL, setPendingSQL] = useState("");
 
   const { isListening, transcript, startListening, stopListening, isSupported } =
     useSpeechRecognition();
 
-  // Auto-fill from voice
   useEffect(() => {
-    if (transcript) {
-      setInput(transcript);
-    }
+    if (transcript) setInput(transcript);
   }, [transcript]);
 
-  // Smart suggestions
   useEffect(() => {
     if (input.length > 3) {
-      const s = getSuggestion(input);
-      setSuggestion(s);
+      setSuggestion(getSuggestion(input));
     } else {
       setSuggestion(null);
     }
   }, [input]);
 
-  const handleSubmit = useCallback(async () => {
-    if (!input.trim() || isLoading) return;
+  const executeCommand = useCallback(async (command: string) => {
     setIsLoading(true);
     setSuggestion(null);
-
     try {
-      const result = await executeNLQuery(input.trim());
+      const result = await executeNLQuery(command);
       setResults((prev) => [result, ...prev]);
       setHistoryRefresh((n) => n + 1);
       setInput("");
     } catch {
-      // handled in executeNLQuery
+      // handled
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading]);
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (!input.trim() || isLoading) return;
+
+    const parsed = parseNaturalLanguage(input.trim());
+    const isDestructive = parsed.intent === "delete" || parsed.intent === "update";
+
+    if (isDestructive) {
+      setPendingCommand(input.trim());
+      setPendingSQL(generateSQLQuery(parsed));
+      setConfirmOpen(true);
+    } else {
+      executeCommand(input.trim());
+    }
+  }, [input, isLoading, executeCommand]);
+
+  const handleConfirm = () => {
+    setConfirmOpen(false);
+    executeCommand(pendingCommand);
+  };
 
   const handleVoiceToggle = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
+    isListening ? stopListening() : startListening();
   };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      <ConfirmDialog
+        open={confirmOpen}
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmOpen(false)}
+        command={pendingCommand}
+        generatedSQL={pendingSQL}
+      />
+
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -85,17 +106,17 @@ export default function Index() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 text-xs text-primary bg-primary/10 px-3 py-1.5 rounded-full font-medium">
               <Zap className="h-3 w-3" />
               Connected
             </span>
+            <ThemeToggle />
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* Command Input Section */}
         <section className="rounded-xl border border-border bg-card p-5 terminal-glow">
           <div className="flex items-center gap-2 mb-4">
             <Terminal className="h-4 w-4 text-primary" />
@@ -120,7 +141,6 @@ export default function Index() {
           )}
         </section>
 
-        {/* Example Commands */}
         <section className="flex items-center gap-2 flex-wrap">
           <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">Try:</span>
@@ -135,7 +155,6 @@ export default function Index() {
           ))}
         </section>
 
-        {/* Results */}
         {results.length > 0 && (
           <section className="space-y-4">
             {results.map((result, i) => (
@@ -146,10 +165,8 @@ export default function Index() {
           </section>
         )}
 
-        {/* Query History */}
         <QueryHistoryPanel refreshTrigger={historyRefresh} />
 
-        {/* Architecture Diagram */}
         <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-sm font-medium text-foreground mb-3">System Architecture</h2>
           <div className="flex items-center justify-center gap-2 flex-wrap text-xs font-mono">
