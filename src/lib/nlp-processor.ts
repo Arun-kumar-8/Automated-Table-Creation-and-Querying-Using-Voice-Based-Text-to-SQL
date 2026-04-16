@@ -81,7 +81,7 @@ export function parseNaturalLanguage(input: string): ParsedCommand {
 
   // Alternate update: "update students set marks to 100 where name is Arun"
   const updateAlt = text.match(
-    /(?:update|change|modify)\s+(\w+)\s+(?:set\s+)?(\w+)\s+(?:to\s+)?(.+?)\s+(?:where|when|if)\s+(\w+)\s+(?:is\s+)?(.+)/i
+    /(?:update|change|modify)\s+(\w+)\s+set\s+(\w+)\s+(?:to\s+)?(.+?)\s+(?:where|when|if)\s+(\w+)\s+(?:is\s+)?(.+)/i
   );
   if (updateAlt) {
     result.intent = "update";
