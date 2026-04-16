@@ -1,5 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
-import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.49.4/cors";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -19,7 +24,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate table name (alphanumeric + underscore only)
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
       return new Response(
         JSON.stringify({ error: "Invalid table name" }),
@@ -43,30 +47,24 @@ Deno.serve(async (req) => {
         const columnDefs = fields.map((f: string) => `${f} TEXT`).join(", ");
         generatedQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (id SERIAL PRIMARY KEY, ${columnDefs});`;
 
-        // Use raw SQL via rpc or direct postgres
         const { error } = await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `CREATE TABLE IF NOT EXISTS public.${tableName} (id SERIAL PRIMARY KEY, ${columnDefs})`
+          sql_query: `CREATE TABLE IF NOT EXISTS public.${tableName} (id SERIAL PRIMARY KEY, ${columnDefs})`,
         });
         if (error) throw new Error(error.message);
 
         // Enable RLS and add public policies
         await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY`
+          sql_query: `ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY`,
         });
-        await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `CREATE POLICY IF NOT EXISTS "Public read ${tableName}" ON public.${tableName} FOR SELECT USING (true)`
-        });
-        await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `CREATE POLICY IF NOT EXISTS "Public insert ${tableName}" ON public.${tableName} FOR INSERT WITH CHECK (true)`
-        });
-        await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `CREATE POLICY IF NOT EXISTS "Public update ${tableName}" ON public.${tableName} FOR UPDATE USING (true)`
-        });
-        await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `CREATE POLICY IF NOT EXISTS "Public delete ${tableName}" ON public.${tableName} FOR DELETE USING (true)`
-        });
+        for (const op of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
+          const using = op === "INSERT" ? `WITH CHECK (true)` : `USING (true)`;
+          const forClause = op === "INSERT" ? `FOR INSERT ${using}` : `FOR ${op} ${using}`;
+          await supabase.rpc("execute_dynamic_sql", {
+            sql_query: `DO $$ BEGIN CREATE POLICY "Public ${op.toLowerCase()} ${tableName}" ON public.${tableName} ${forClause}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+          });
+        }
 
-        result = { message: `Table '${tableName}' created successfully` };
+        result = { message: `Table '${tableName}' created successfully with columns: ${fields.join(", ")}` };
         break;
       }
 
@@ -84,34 +82,31 @@ Deno.serve(async (req) => {
         const valuesStr = values.map((v: string) => `'${v}'`).join(", ");
         generatedQuery = `INSERT INTO ${tableName} (${fields.join(", ")}) VALUES (${valuesStr});`;
 
-        // First ensure table exists
+        // Ensure table & columns exist
         const colDefs = fields.map((f: string) => `${f} TEXT`).join(", ");
         await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `CREATE TABLE IF NOT EXISTS public.${tableName} (id SERIAL PRIMARY KEY, ${colDefs})`
+          sql_query: `CREATE TABLE IF NOT EXISTS public.${tableName} (id SERIAL PRIMARY KEY, ${colDefs})`,
         });
-        // Add columns that might not exist
         for (const field of fields) {
           await supabase.rpc("execute_dynamic_sql", {
-            sql_query: `DO $$ BEGIN ALTER TABLE public.${tableName} ADD COLUMN IF NOT EXISTS ${field} TEXT; EXCEPTION WHEN others THEN NULL; END $$`
+            sql_query: `DO $$ BEGIN ALTER TABLE public.${tableName} ADD COLUMN IF NOT EXISTS ${field} TEXT; EXCEPTION WHEN others THEN NULL; END $$`,
           });
         }
-        // Enable RLS
+        // Ensure RLS policies
         await supabase.rpc("execute_dynamic_sql", {
-          sql_query: `ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY`
+          sql_query: `ALTER TABLE public.${tableName} ENABLE ROW LEVEL SECURITY`,
         });
-        // Add policies (ignore if exists)
         for (const op of ["SELECT", "INSERT", "UPDATE", "DELETE"]) {
           const using = op === "INSERT" ? `WITH CHECK (true)` : `USING (true)`;
           const forClause = op === "INSERT" ? `FOR INSERT ${using}` : `FOR ${op} ${using}`;
           await supabase.rpc("execute_dynamic_sql", {
-            sql_query: `DO $$ BEGIN CREATE POLICY "Public ${op.toLowerCase()} ${tableName}" ON public.${tableName} ${forClause}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`
+            sql_query: `DO $$ BEGIN CREATE POLICY "Public ${op.toLowerCase()} ${tableName}" ON public.${tableName} ${forClause}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
           });
         }
 
-        // Now insert
         const { error } = await supabase.from(tableName).insert(insertObj);
         if (error) throw new Error(error.message);
-        result = { message: `Data inserted into '${tableName}' successfully` };
+        result = { message: `Data inserted into '${tableName}' successfully`, inserted: insertObj };
         break;
       }
 
