@@ -1,4 +1,5 @@
-import { Code, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Code, Clock, CheckCircle, XCircle, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { QueryResult } from "@/lib/query-engine";
 
 interface QueryResultDisplayProps {
@@ -58,9 +59,35 @@ export function QueryResultDisplay({ result }: QueryResultDisplayProps) {
       {/* Result Data as Table */}
       {!isError && isArray && result.data.length > 0 && (
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">
-            Results ({result.data.length} row{result.data.length !== 1 ? "s" : ""})
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+              Results ({result.data.length} row{result.data.length !== 1 ? "s" : ""})
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => {
+                const keys = Object.keys(result.data[0]).filter((k) => k !== "id");
+                const csv = [
+                  keys.join(","),
+                  ...result.data.map((row: Record<string, any>) =>
+                    keys.map((k) => `"${String(row[k] ?? "").replace(/"/g, '""')}"`).join(",")
+                  ),
+                ].join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${result.parsedCommand.tableName || "results"}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="h-3 w-3" />
+              CSV
+            </Button>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead>
