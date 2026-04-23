@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      emp: {
+        Row: {
+          department: string | null
+          empid: string | null
+          id: number
+          name: string | null
+          salary: string | null
+        }
+        Insert: {
+          department?: string | null
+          empid?: string | null
+          id?: number
+          name?: string | null
+          salary?: string | null
+        }
+        Update: {
+          department?: string | null
+          empid?: string | null
+          id?: number
+          name?: string | null
+          salary?: string | null
+        }
+        Relationships: []
+      }
       query_history: {
         Row: {
           created_at: string
