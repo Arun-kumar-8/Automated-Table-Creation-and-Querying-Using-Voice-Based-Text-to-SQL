@@ -14,6 +14,7 @@ const EXAMPLE_COMMANDS = [
   "Insert name Arun and marks 95 into students",
   "Show students",
   "Update students set marks to 100 where name is Arun",
+  "Update marks to 100 where name Arun in students",
   "Delete from students where name Arun",
 ];
 

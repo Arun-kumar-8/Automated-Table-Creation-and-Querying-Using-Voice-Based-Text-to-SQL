@@ -53,33 +53,7 @@ export function parseNaturalLanguage(input: string): ParsedCommand {
   }
 
   // UPDATE: "update marks to 100 where name Arun in students"
-  // or "update marks to 100 where name Arun"
-  const updateMatch = text.match(
-    /(?:update|change|set|modify)\s+(\w+)\s+to\s+(.+?)\s+(?:where|when|if)\s+(\w+)\s+(?:is\s+)?(.+?)(?:\s+in\s+(\w+))?$/i
-  );
-  if (updateMatch) {
-    result.intent = "update";
-    result.tableName = updateMatch[5] || "";
-    result.values.push(updateMatch[1]); // field to update
-    result.values.push(updateMatch[2]); // new value
-    result.conditions[updateMatch[3]] = updateMatch[4];
-
-    // If no table name found, try to infer from context
-    if (!result.tableName) {
-      // Try alternate pattern: "update students set marks 100 where name Arun"
-      const altMatch = text.match(
-        /(?:update|change|modify)\s+(\w+)\s+(?:set\s+)?(\w+)\s+(?:to\s+)?(.+?)\s+(?:where|when|if)\s+(\w+)\s+(?:is\s+)?(.+)/i
-      );
-      if (altMatch) {
-        result.tableName = altMatch[1];
-        result.values = [altMatch[2], altMatch[3]];
-        result.conditions[altMatch[4]] = altMatch[5];
-      }
-    }
-    return result;
-  }
-
-  // Alternate update: "update students set marks to 100 where name is Arun"
+  // Pattern A (preferred): "update <table> set <field> to <value> where <col> is <val>"
   const updateAlt = text.match(
     /(?:update|change|modify)\s+(\w+)\s+set\s+(\w+)\s+(?:to\s+)?(.+?)\s+(?:where|when|if)\s+(\w+)\s+(?:is\s+)?(.+)/i
   );
@@ -88,6 +62,19 @@ export function parseNaturalLanguage(input: string): ParsedCommand {
     result.tableName = updateAlt[1];
     result.values = [updateAlt[2], updateAlt[3]];
     result.conditions[updateAlt[4]] = updateAlt[5];
+    return result;
+  }
+
+  // Pattern B: "update <field> to <value> where <col> is <val> in <table>"
+  // Table name is REQUIRED via "in <table>" — never guess.
+  const updateInMatch = text.match(
+    /(?:update|change|set|modify)\s+(\w+)\s+to\s+(.+?)\s+(?:where|when|if)\s+(\w+)\s+(?:is\s+)?(.+?)\s+in\s+(\w+)\s*$/i
+  );
+  if (updateInMatch) {
+    result.intent = "update";
+    result.tableName = updateInMatch[5];
+    result.values = [updateInMatch[1], updateInMatch[2]];
+    result.conditions[updateInMatch[3]] = updateInMatch[4];
     return result;
   }
 
