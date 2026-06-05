@@ -15,16 +15,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { operation, tableName, fields, values, conditions } = await req.json();
+    const { operation, tableName, fields, values, conditions, sql } = await req.json();
 
-    if (!operation || !tableName) {
+    if (!operation) {
       return new Response(
-        JSON.stringify({ error: "Missing operation or tableName" }),
+        JSON.stringify({ error: "Missing operation" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+    if (operation !== "raw" && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName || "")) {
       return new Response(
         JSON.stringify({ error: "Invalid table name" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -165,6 +165,31 @@ Deno.serve(async (req) => {
         const { error } = await deleteQuery;
         if (error) throw new Error(error.message);
         result = { message: `Data deleted from '${tableName}' successfully` };
+        break;
+      }
+
+      case "raw": {
+        if (!sql || typeof sql !== "string") {
+          return new Response(
+            JSON.stringify({ error: "Missing sql for raw operation" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        generatedQuery = sql.endsWith(";") ? sql : sql + ";";
+        const trimmed = sql.trim().replace(/;+\s*$/, "");
+        const head = trimmed.split(/\s+/, 1)[0].toLowerCase();
+        const isSelect = head === "select" || head === "with";
+        if (isSelect) {
+          const { data, error } = await supabase.rpc("execute_select_sql", { sql_query: trimmed });
+          if (error) throw new Error(error.message);
+          result = data ?? [];
+        } else if (["update", "delete", "insert", "create", "alter", "drop"].includes(head)) {
+          const { error } = await supabase.rpc("execute_dynamic_sql", { sql_query: trimmed });
+          if (error) throw new Error(error.message);
+          result = { message: `${head.toUpperCase()} executed successfully` };
+        } else {
+          throw new Error(`Unsupported SQL statement: ${head}`);
+        }
         break;
       }
 
