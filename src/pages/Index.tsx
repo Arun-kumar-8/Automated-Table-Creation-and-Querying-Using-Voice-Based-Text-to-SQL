@@ -13,9 +13,17 @@ const EXAMPLE_COMMANDS = [
   "Create table students with name and marks",
   "Insert name Arun and marks 95 into students",
   "Show students",
+  "Show students where marks > 80",
+  "Show students sorted by marks descending",
+  "Show top 5 students",
+  "Count students",
+  "Show average marks in students",
+  "Show students whose name starts with A",
+  "Show students with marks between 50 and 80",
+  "Show all tables",
+  "Describe students",
   "Update students set marks to 100 where name is Arun",
-  "Update marks to 100 where name Arun in students",
-  "Delete from students where name Arun",
+  "Delete from students where name is Arun",
 ];
 
 export default function Index() {
@@ -62,11 +70,16 @@ export default function Index() {
     if (!input.trim() || isLoading) return;
 
     const parsed = parseNaturalLanguage(input.trim());
-    const isDestructive = parsed.intent === "delete" || parsed.intent === "update";
+    const sqlPreview = generateSQLQuery(parsed);
+    const head = sqlPreview.trim().split(/\s+/, 1)[0].toUpperCase();
+    const isDestructive =
+      parsed.intent === "delete" ||
+      parsed.intent === "update" ||
+      (parsed.intent === "raw" && (head === "UPDATE" || head === "DELETE" || head === "DROP" || head === "ALTER"));
 
     if (isDestructive) {
       setPendingCommand(input.trim());
-      setPendingSQL(generateSQLQuery(parsed));
+      setPendingSQL(sqlPreview);
       setConfirmOpen(true);
     } else {
       executeCommand(input.trim());
