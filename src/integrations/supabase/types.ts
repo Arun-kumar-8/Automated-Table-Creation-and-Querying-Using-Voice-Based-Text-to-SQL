@@ -38,6 +38,27 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          id: number
+          job: string | null
+          name: string | null
+          salary: string | null
+        }
+        Insert: {
+          id?: number
+          job?: string | null
+          name?: string | null
+          salary?: string | null
+        }
+        Update: {
+          id?: number
+          job?: string | null
+          name?: string | null
+          salary?: string | null
+        }
+        Relationships: []
+      }
       query_history: {
         Row: {
           created_at: string
@@ -71,7 +92,7 @@ export type Database = {
         }
         Relationships: []
       }
-      students: {
+      student: {
         Row: {
           id: number
           marks: string | null
@@ -86,6 +107,30 @@ export type Database = {
           id?: number
           marks?: string | null
           name?: string | null
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          id: number
+          job: string | null
+          marks: string | null
+          name: string | null
+          salary: string | null
+        }
+        Insert: {
+          id?: number
+          job?: string | null
+          marks?: string | null
+          name?: string | null
+          salary?: string | null
+        }
+        Update: {
+          id?: number
+          job?: string | null
+          marks?: string | null
+          name?: string | null
+          salary?: string | null
         }
         Relationships: []
       }
