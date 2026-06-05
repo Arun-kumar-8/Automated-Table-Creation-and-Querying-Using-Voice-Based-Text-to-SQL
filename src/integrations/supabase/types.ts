@@ -140,6 +140,7 @@ export type Database = {
     }
     Functions: {
       execute_dynamic_sql: { Args: { sql_query: string }; Returns: undefined }
+      execute_select_sql: { Args: { sql_query: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
