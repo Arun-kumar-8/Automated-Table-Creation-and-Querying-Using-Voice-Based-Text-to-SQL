@@ -57,6 +57,10 @@ export async function executeNLQuery(userInput: string): Promise<QueryResult> {
         operation = "delete";
         body.conditions = parsed.conditions;
         break;
+      case "raw":
+        operation = "raw";
+        body.sql = parsed.rawSQL;
+        break;
     }
 
     body.operation = operation;
